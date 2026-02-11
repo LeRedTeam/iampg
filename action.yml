@@ -1,0 +1,83 @@
+name: 'IAM Auto-Policy Generator'
+description: 'Generate minimal IAM policies by observing AWS API calls or parsing logs'
+author: 'LeRedTeam'
+
+branding:
+  icon: 'shield'
+  color: 'orange'
+
+inputs:
+  mode:
+    description: 'Mode: run or parse'
+    required: true
+  command:
+    description: 'Command to run (for mode: run)'
+    required: false
+  cloudtrail:
+    description: 'Path to CloudTrail JSON file (for mode: parse)'
+    required: false
+  error:
+    description: 'AccessDenied error message (for mode: parse)'
+    required: false
+  output:
+    description: 'Output file path for generated policy'
+    required: false
+    default: 'policy.json'
+
+outputs:
+  policy:
+    description: 'Generated IAM policy JSON'
+  policy-file:
+    description: 'Path to the generated policy file'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Download iampg
+      shell: bash
+      run: |
+        VERSION="${{ github.action_ref }}"
+        if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+          VERSION="latest"
+        fi
+
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+          ARCH="amd64"
+        elif [ "$ARCH" = "aarch64" ]; then
+          ARCH="arm64"
+        fi
+
+        if [ "$VERSION" = "latest" ]; then
+          DOWNLOAD_URL="https://github.com/LeRedTeam/iampg/releases/latest/download/iampg_${OS}_${ARCH}.tar.gz"
+        else
+          DOWNLOAD_URL="https://github.com/LeRedTeam/iampg/releases/download/${VERSION}/iampg_${VERSION#v}_${OS}_${ARCH}.tar.gz"
+        fi
+
+        curl -sSL "$DOWNLOAD_URL" | tar xz
+        chmod +x iampg
+        sudo mv iampg /usr/local/bin/
+
+    - name: Run iampg
+      shell: bash
+      run: |
+        if [ "${{ inputs.mode }}" = "run" ]; then
+          iampg run --output "${{ inputs.output }}" -- ${{ inputs.command }}
+        elif [ "${{ inputs.mode }}" = "parse" ]; then
+          if [ -n "${{ inputs.cloudtrail }}" ]; then
+            iampg parse --cloudtrail "${{ inputs.cloudtrail }}" --output "${{ inputs.output }}"
+          elif [ -n "${{ inputs.error }}" ]; then
+            iampg parse --error "${{ inputs.error }}" --output "${{ inputs.output }}"
+          fi
+        fi
+
+    - name: Set outputs
+      shell: bash
+      run: |
+        echo "policy-file=${{ inputs.output }}" >> $GITHUB_OUTPUT
+        if [ -f "${{ inputs.output }}" ]; then
+          echo "policy<<EOF" >> $GITHUB_OUTPUT
+          cat "${{ inputs.output }}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi

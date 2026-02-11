@@ -4,6 +4,23 @@ Generate minimal IAM policies by observing AWS API calls or parsing logs.
 
 Stop guessing IAM permissions. Run your code, get your policy.
 
+## GitHub Action
+
+```yaml
+- name: Generate IAM Policy
+  uses: LeRedTeam/iampg@v1
+  with:
+    mode: parse
+    cloudtrail: ./cloudtrail-logs.json
+    output: policy.json
+
+- name: Upload policy
+  uses: actions/upload-artifact@v4
+  with:
+    name: iam-policy
+    path: policy.json
+```
+
 ## Installation
 
 ```bash
