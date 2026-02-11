@@ -1,75 +1,67 @@
 # Roadmap
 
-## Phase 1: MVP (v1.0)
+## Current Status: Ready for v1.0 Release
 
-**Goal:** Working CLI that generates policies from command execution and log parsing.
+All planned features are implemented and tested.
 
-**Scope:**
-- `run` command with proxy capture
-- `parse` command for CloudTrail and errors
-- JSON output
-- Cross-platform binaries
+## Completed Features
 
-**Timeline:** 4 weeks
+### Free Tier
+- [x] `run` command - Capture AWS CLI calls
+- [x] `parse` command - Parse CloudTrail and AccessDenied errors
+- [x] JSON output format
+
+### Pro Tier
+- [x] License validation (Ed25519 signed keys)
+- [x] YAML output format
+- [x] Terraform output format
+- [x] SARIF output format
+- [x] `refine` command - Policy analysis
+- [x] Wildcard detection
+- [x] Scoping suggestions
+- [x] Dangerous permission detection
+- [x] Policy diff/comparison
+- [x] CI enforcement mode (--enforce)
+- [x] `aggregate` command - Multi-policy merging
+
+### Infrastructure
+- [x] GitHub Actions CI (tests on every push)
+- [x] GitHub Actions Release (GoReleaser)
+- [x] GitHub Action for Marketplace
+- [x] Cross-platform builds (linux/darwin/windows, amd64/arm64)
+- [x] Unit tests (29 tests passing)
 
 ---
 
-## Phase 2: Stabilization (v1.x)
+## Release Checklist
 
-**Goal:** Fix bugs, respond to community feedback, harden core functionality.
+### Before v1.0.0
+- [ ] Create production keypair ✅
+- [ ] Set IAMPG_PUBLIC_KEY secret ✅
+- [ ] Make repo public
+- [ ] Create v1.0.0 tag
+- [ ] Publish to GitHub Marketplace
+- [ ] Add Marketplace categories (Security, CI/CD)
 
-**Scope:**
-- Bug fixes from user reports
-- Error message improvements
+### Post-Launch
+- Bug fixes based on user feedback
 - Documentation improvements
-- Edge case handling
-
-**Timeline:** Ongoing, 2-3 months post-launch
-
-**Constraint:** No new features, stability only.
+- Additional AWS service support
 
 ---
 
-## Phase 3: Paid Features (v2.0)
+## Future Considerations (Not Committed)
 
-**Goal:** Introduce paid tier with refinement features.
+These may be considered based on user demand:
 
-**Scope:**
-- `refine` command
-- Wildcard detection
-- Scoping suggestions
-- Policy diff/comparison
-- Terraform output format
-- YAML output format
-- License key validation
+| Feature | Consideration |
+|---------|---------------|
+| SDK capture | HTTP proxy with MITM for non-CLI usage |
+| More services | Extended action mappings for niche services |
+| Policy templates | Pre-built policies for common patterns |
+| VS Code extension | IDE integration |
 
-**Timeline:** 3-6 months post-launch
-
-**Prerequisite:** MVP adoption validates demand.
-
----
-
-## Phase 4: CI Integration (v2.x)
-
-**Goal:** First-class CI/CD support.
-
-**Scope:**
-- SARIF output for security scanners
-- CI enforcement mode (fail on broad policies)
-- Multi-run aggregation
-- GitHub Action wrapper
-
-**Timeline:** 6-9 months post-launch
-
----
-
-## Phase 5: Polish (v3.0)
-
-**Goal:** Quality-of-life improvements based on user feedback.
-
-**Scope:** TBD based on usage patterns
-
-**Timeline:** 12+ months
+**Constraint:** Any future feature must pass the anti-overengineering test in `decision_framework.md`.
 
 ---
 
@@ -77,20 +69,10 @@
 
 - Web UI/dashboard
 - SaaS backend
-- User accounts
-- Database
+- User accounts/database
 - Multi-cloud support
 - Real-time monitoring
 - Compliance frameworks
 - Enterprise contracts
 
 See `non_goals.md` for complete list.
-
----
-
-## Roadmap Evolution Rules
-
-1. Features move from future phases to current only with explicit approval
-2. Features never move from "Never" to roadmap without documented justification
-3. Timeline is indicative, not commitment
-4. Scope reduction is allowed; scope expansion requires approval

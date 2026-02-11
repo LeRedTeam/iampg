@@ -289,21 +289,29 @@ Environment variables only (no config files):
 
 ## Testing Strategy
 
-### Unit Tests
-- Policy generation logic
-- Log parsing logic
-- ARN parsing logic
+### Unit Tests (Implemented)
+- `policy/policy_test.go` - Policy generation logic
+- `parse/error_test.go` - AccessDenied parsing
+- `parse/cloudtrail_test.go` - CloudTrail parsing
+- `capture/runner_test.go` - AWS CLI argument parsing
 
-### Integration Tests
-- End-to-end CLI execution
-- Proxy capture with real AWS SDK calls
-- Output format validation
+### Running Tests
+```bash
+go test ./... -v
+```
 
-### Compatibility Tests
-- Test with AWS CLI
-- Test with boto3 (Python)
-- Test with AWS SDK for JavaScript
-- Test with AWS SDK for Go
+### CI Pipeline
+Tests run automatically on:
+- Every push to main
+- Every pull request
+
+See `.github/workflows/ci.yaml`
+
+### Test Coverage
+- Policy generation: determinism, deduplication, grouping
+- Error parsing: multiple formats, edge cases
+- CloudTrail parsing: single/multiple records, different formats
+- CLI parsing: S3, DynamoDB, Lambda commands with flags
 
 ### Test Principle
 Prefer real AWS calls in integration tests over mocks. Use test accounts or LocalStack where appropriate.
