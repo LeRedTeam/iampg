@@ -17,6 +17,7 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/LeRedTeam/iampg/cmd.version={{.Version}}
+      - -X github.com/LeRedTeam/iampg/license.publicKeyBase64={{ .Env.IAMPG_PUBLIC_KEY }}
 
 archives:
   - formats:

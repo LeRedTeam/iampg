@@ -29,3 +29,4 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IAMPG_PUBLIC_KEY: ${{ secrets.IAMPG_PUBLIC_KEY }}

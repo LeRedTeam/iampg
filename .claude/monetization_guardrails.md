@@ -78,12 +78,23 @@ This document defines the monetization strategy and constraints for IAM Auto-Pol
 
 ## License Model
 
-### Key-Based Licensing
+### Key-Based Licensing (Implemented)
 
 - License key unlocks paid features
 - Key validated locally (no phone-home required)
 - Key tied to email address
 - Key has expiration date
+- Set via `IAMPG_LICENSE_KEY` environment variable
+
+### License Key Format
+
+License keys are Ed25519-signed JSON payloads containing:
+- Email address
+- Tier (pro, team)
+- Issued date
+- Expiration date
+
+The public key is embedded in the binary at build time.
 
 ### License Enforcement
 
@@ -104,16 +115,28 @@ This document defines the monetization strategy and constraints for IAM Auto-Pol
 The CLI does not require internet access for license validation.
 
 **Implementation:**
-- License key is cryptographically signed
-- Local validation of signature
-- Expiration date embedded in key
-- No license server
+- Ed25519 cryptographic signatures
+- Public key embedded in binary
+- Private key stored securely (GitHub secret)
+- Local validation only
 
-**Why:**
-- Works in air-gapped environments
-- No infrastructure to maintain
-- No privacy concerns
-- Simpler implementation
+### Admin Commands (Hidden)
+
+```bash
+# Generate keypair (one-time setup)
+iampg license generate-keypair
+
+# Generate license key for customer
+iampg license generate --email user@example.com --tier pro --days 365 --private-key $KEY
+
+# Check license status
+iampg license status
+```
+
+### GitHub Secrets Required
+
+- `IAMPG_PUBLIC_KEY` - Public key for release builds
+- `IAMPG_PRIVATE_KEY` - Private key for license generation (keep secure, not in repo)
 
 ---
 

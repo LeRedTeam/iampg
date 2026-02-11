@@ -69,7 +69,22 @@ iampg parse --stdin
 
 ---
 
-## MVP Does NOT Include
+## Paid Features (To Build)
+
+| Feature | Status |
+|---------|--------|
+| License validation | ✅ Done |
+| `refine` command | ❌ Pending |
+| Terraform output | ❌ Pending |
+| YAML output | ❌ Pending |
+| SARIF output | ❌ Pending |
+| Multi-run aggregation | ❌ Pending |
+| CI enforcement mode | ❌ Pending |
+| Wildcard detection | ❌ Pending |
+| Scoping suggestions | ❌ Pending |
+| Policy diff | ❌ Pending |
+
+## Not In Scope
 
 - UI/dashboard
 - Web interface
@@ -77,12 +92,6 @@ iampg parse --stdin
 - Database
 - User accounts
 - Policy storage
-- `refine` command (paid, post-MVP)
-- Terraform output (paid, post-MVP)
-- YAML output (paid, post-MVP)
-- SARIF output (paid, post-MVP)
-- Multi-run aggregation (paid, post-MVP)
-- CI enforcement mode (paid, post-MVP)
 
 ---
 
