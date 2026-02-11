@@ -109,7 +109,3 @@ iampg parse --cloudtrail trail.json
 - **No credential storage** - Uses your existing AWS credentials
 - **No network calls** - All processing is local
 - **No telemetry** - Nothing is sent anywhere
-
-## License
-
-MIT
