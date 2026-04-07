@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package policy
 
 import (
@@ -114,5 +117,147 @@ func TestToJSON_ValidFormat(t *testing.T) {
 	}
 	if _, ok := parsed["Statement"].([]interface{}); !ok {
 		t.Error("missing or incorrect Statement field")
+	}
+}
+
+func TestUnmarshalJSON_ActionAsString(t *testing.T) {
+	// IAM allows Action to be a string instead of array
+	jsonData := `{
+		"Effect": "Allow",
+		"Action": "s3:GetObject",
+		"Resource": "*"
+	}`
+
+	var stmt Statement
+	if err := json.Unmarshal([]byte(jsonData), &stmt); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+
+	if len(stmt.Action) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(stmt.Action))
+	}
+	if stmt.Action[0] != "s3:GetObject" {
+		t.Errorf("expected s3:GetObject, got %s", stmt.Action[0])
+	}
+}
+
+func TestUnmarshalJSON_ActionAsArray(t *testing.T) {
+	jsonData := `{
+		"Effect": "Allow",
+		"Action": ["s3:GetObject", "s3:PutObject"],
+		"Resource": "*"
+	}`
+
+	var stmt Statement
+	if err := json.Unmarshal([]byte(jsonData), &stmt); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+
+	if len(stmt.Action) != 2 {
+		t.Fatalf("expected 2 actions, got %d", len(stmt.Action))
+	}
+	if stmt.Action[0] != "s3:GetObject" || stmt.Action[1] != "s3:PutObject" {
+		t.Errorf("unexpected actions: %v", stmt.Action)
+	}
+}
+
+func TestUnmarshalJSON_WildcardAction(t *testing.T) {
+	// Common pattern for overly broad policies
+	jsonData := `{
+		"Effect": "Allow",
+		"Action": "s3:*",
+		"Resource": "*"
+	}`
+
+	var stmt Statement
+	if err := json.Unmarshal([]byte(jsonData), &stmt); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+
+	if len(stmt.Action) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(stmt.Action))
+	}
+	if stmt.Action[0] != "s3:*" {
+		t.Errorf("expected s3:*, got %s", stmt.Action[0])
+	}
+}
+
+func TestUnmarshalJSON_Document(t *testing.T) {
+	// Full policy document with string Action
+	jsonData := `{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Action": "s3:*",
+				"Resource": "*"
+			}
+		]
+	}`
+
+	var doc Document
+	if err := json.Unmarshal([]byte(jsonData), &doc); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+
+	if doc.Version != "2012-10-17" {
+		t.Errorf("expected version 2012-10-17, got %s", doc.Version)
+	}
+	if len(doc.Statement) != 1 {
+		t.Fatalf("expected 1 statement, got %d", len(doc.Statement))
+	}
+	if len(doc.Statement[0].Action) != 1 || doc.Statement[0].Action[0] != "s3:*" {
+		t.Errorf("unexpected action: %v", doc.Statement[0].Action)
+	}
+}
+
+func TestUnmarshalJSON_NonStringActionNoPanic(t *testing.T) {
+	// Malformed policy with non-string in Action array — should not panic
+	jsonData := `{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Action": ["s3:GetObject", 123, null],
+				"Resource": "*"
+			}
+		]
+	}`
+
+	var doc Document
+	if err := json.Unmarshal([]byte(jsonData), &doc); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+
+	// Should only keep the valid string element
+	if len(doc.Statement[0].Action) != 1 {
+		t.Errorf("expected 1 valid action, got %d: %v", len(doc.Statement[0].Action), doc.Statement[0].Action)
+	}
+	if doc.Statement[0].Action[0] != "s3:GetObject" {
+		t.Errorf("expected s3:GetObject, got %s", doc.Statement[0].Action[0])
+	}
+}
+
+func TestUnmarshalJSON_NonStringResourceNoPanic(t *testing.T) {
+	// Malformed policy with non-string Resource — should not panic
+	jsonData := `{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Action": ["s3:GetObject"],
+				"Resource": [123]
+			}
+		]
+	}`
+
+	var doc Document
+	if err := json.Unmarshal([]byte(jsonData), &doc); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+
+	// Non-string resource should result in empty, not panic
+	if doc.Statement[0].Resource != "" {
+		t.Errorf("expected empty resource for non-string, got %s", doc.Statement[0].Resource)
 	}
 }

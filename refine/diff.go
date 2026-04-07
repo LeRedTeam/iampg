@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package refine
 
 import (
@@ -36,22 +39,26 @@ func Diff(baseline, current *policy.Document) *DiffResult {
 	// Find added permissions
 	for perm := range currentPerms {
 		if _, exists := baselinePerms[perm]; !exists {
-			parts := strings.SplitN(perm, "|", 2)
-			result.Added = append(result.Added, DiffEntry{
-				Type:  "permission",
-				Value: fmt.Sprintf("%s on %s", parts[0], parts[1]),
-			})
+			parts := strings.SplitN(perm, "|", 3)
+			if len(parts) == 3 {
+				result.Added = append(result.Added, DiffEntry{
+					Type:  "permission",
+					Value: fmt.Sprintf("%s %s on %s", parts[0], parts[1], parts[2]),
+				})
+			}
 		}
 	}
 
 	// Find removed permissions
 	for perm := range baselinePerms {
 		if _, exists := currentPerms[perm]; !exists {
-			parts := strings.SplitN(perm, "|", 2)
-			result.Removed = append(result.Removed, DiffEntry{
-				Type:  "permission",
-				Value: fmt.Sprintf("%s on %s", parts[0], parts[1]),
-			})
+			parts := strings.SplitN(perm, "|", 3)
+			if len(parts) == 3 {
+				result.Removed = append(result.Removed, DiffEntry{
+					Type:  "permission",
+					Value: fmt.Sprintf("%s %s on %s", parts[0], parts[1], parts[2]),
+				})
+			}
 		}
 	}
 
@@ -70,7 +77,7 @@ func extractPermissions(doc *policy.Document) map[string]bool {
 	perms := make(map[string]bool)
 	for _, stmt := range doc.Statement {
 		for _, action := range stmt.Action {
-			key := action + "|" + stmt.Resource
+			key := stmt.Effect + "|" + action + "|" + stmt.Resource
 			perms[key] = true
 		}
 	}

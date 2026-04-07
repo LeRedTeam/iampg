@@ -1,14 +1,16 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package capture
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/LeRedTeam/iampg/policy"
 )
@@ -40,8 +42,6 @@ func (r *Runner) Run(args []string) ([]policy.ObservedCall, int, error) {
 		"AWS_DEBUG=true",
 	)
 
-	// Capture stderr for debug output
-	var stderrBuf bytes.Buffer
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, 1, fmt.Errorf("failed to create stderr pipe: %w", err)
@@ -55,13 +55,17 @@ func (r *Runner) Run(args []string) ([]policy.ObservedCall, int, error) {
 	}
 
 	// Read stderr and parse for AWS calls
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		reader := bufio.NewReader(stderrPipe)
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
-				if err != io.EOF {
-					stderrBuf.WriteString(line)
+				// Pass through any remaining partial line
+				if line != "" {
+					fmt.Fprint(os.Stderr, line)
 				}
 				break
 			}
@@ -80,6 +84,7 @@ func (r *Runner) Run(args []string) ([]policy.ObservedCall, int, error) {
 	}()
 
 	err = cmd.Wait()
+	wg.Wait() // Ensure goroutine finishes before reading calls
 	exitCode := 0
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -98,8 +103,6 @@ var (
 	botocoreOpPattern = regexp.MustCompile(`Making request for (\w+)`)
 	// Pattern: "2024-01-01 12:00:00,000 - MainThread - botocore.endpoint - DEBUG - https://service.region.amazonaws.com/"
 	botocoreURLPattern = regexp.MustCompile(`https://([a-z0-9-]+)\.([a-z0-9-]+)\.amazonaws\.com`)
-	// AWS CLI v2 pattern: "AWS CLI command entered with arguments: [...]"
-	awscliPattern = regexp.MustCompile(`aws\s+([a-z0-9-]+)\s+([a-z0-9-]+)`)
 )
 
 func (r *Runner) parseDebugLine(line string) *policy.ObservedCall {
@@ -116,14 +119,12 @@ func (r *Runner) parseDebugLine(line string) *policy.ObservedCall {
 		region := matches[2]
 
 		// Update the last incomplete call with service info
-		calls := r.capturer.Calls()
-		if len(calls) > 0 {
-			lastCall := &calls[len(calls)-1]
-			if lastCall.Service == "" {
-				lastCall.Service = service
-				lastCall.Region = region
+		r.capturer.UpdateLast(func(call *policy.ObservedCall) {
+			if call.Service == "" {
+				call.Service = service
+				call.Region = region
 			}
-		}
+		})
 	}
 
 	return nil
@@ -171,10 +172,30 @@ func (r *Runner) RunWithCloudTrailSim(args []string) ([]policy.ObservedCall, int
 		call := parseAWSCLIArgs(args)
 		if call != nil {
 			r.capturer.AddCall(*call)
+			// s3 mv needs additional permissions beyond cp
+			if call.Service == "s3" {
+				isMv := false
+				for _, a := range args {
+					if a == "mv" {
+						isMv = true
+						break
+					}
+				}
+				if isMv {
+					// mv always needs DeleteObject on the source
+					r.capturer.AddCall(policy.ObservedCall{
+						Service:  "s3",
+						Action:   "DeleteObject",
+						Resource: call.Resource,
+					})
+				}
+			}
 			if r.verbose {
 				fmt.Fprintf(os.Stderr, "[capture] %s:%s on %s\n", call.Service, call.Action, call.Resource)
 			}
 		}
+	} else if len(args) > 0 {
+		fmt.Fprintf(os.Stderr, "Warning: '%s' is not an AWS CLI command. Only 'aws' CLI commands are captured in this mode.\n", args[0])
 	}
 
 	// Still run the command
@@ -192,6 +213,9 @@ func (r *Runner) RunWithCloudTrailSim(args []string) ([]policy.ObservedCall, int
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
+		} else {
+			// Command not found, permission denied, etc.
+			return r.capturer.Calls(), 1, fmt.Errorf("failed to execute command: %w", err)
 		}
 	}
 
@@ -208,14 +232,36 @@ func parseAWSCLIArgs(args []string) *policy.ObservedCall {
 	var service, command string
 	var positionalArgs []string
 
+	// AWS CLI boolean flags that don't take a value
+	booleanFlags := map[string]bool{
+		"--recursive": true, "--no-sign-request": true, "--debug": true,
+		"--no-verify-ssl": true, "--no-paginate": true, "--dryrun": true,
+		"--dry-run": true, "--no-include-email": true, "--generate-cli-skeleton": true,
+		"--cli-auto-prompt": true, "--no-cli-auto-prompt": true,
+		"--only-show-errors": true, "--no-progress": true, "--quiet": true,
+		"--force": true, "--exact-timestamps": true, "--delete": true,
+		"--follow-symlinks": true, "--no-follow-symlinks": true,
+		"--summarize": true, "--human-readable": true, "--paginate": true,
+	}
+
 	i := 1
 	for i < len(args) {
 		arg := args[i]
 		if strings.HasPrefix(arg, "--") {
-			// Skip flag and its value if not boolean
-			i++
-			if i < len(args) && !strings.HasPrefix(args[i], "--") {
+			// Handle --flag=value syntax
+			if strings.Contains(arg, "=") {
+				i++ // skip the flag=value, value is part of the flag
+				continue
+			}
+			if booleanFlags[arg] {
+				// Boolean flag: skip only the flag itself
 				i++
+			} else {
+				// Flag with value: skip flag and its value
+				i++
+				if i < len(args) && !strings.HasPrefix(args[i], "--") {
+					i++
+				}
 			}
 			continue
 		}
@@ -247,20 +293,37 @@ func parseAWSCLIArgs(args []string) *policy.ObservedCall {
 	// Map CLI command to IAM action
 	action := cliCommandToAction(service, command)
 
-	// Special case: s3 ls - depends on whether bucket is specified
-	if service == "s3" && command == "ls" {
-		hasS3Path := false
-		for _, arg := range args {
-			if strings.HasPrefix(arg, "s3://") {
-				hasS3Path = true
-				break
+	// Special cases for S3 commands that depend on arguments
+	if service == "s3" {
+		switch command {
+		case "ls":
+			hasS3Path := false
+			for _, arg := range args {
+				if strings.HasPrefix(arg, "s3://") {
+					hasS3Path = true
+					break
+				}
 			}
-		}
-		if hasS3Path {
-			action = "ListBucket"
-		} else {
-			action = "ListAllMyBuckets"
-			resource = "*"
+			if hasS3Path {
+				action = "ListBucket"
+			} else {
+				action = "ListAllMyBuckets"
+				resource = "*"
+			}
+		case "cp", "mv", "sync":
+			// Determine direction: if first s3:// path is the source, it's a download
+			firstS3Idx := -1
+			for idx, arg := range positionalArgs {
+				if strings.HasPrefix(arg, "s3://") {
+					firstS3Idx = idx
+					break
+				}
+			}
+			if firstS3Idx == 0 {
+				// Source is S3 → download
+				action = "GetObject"
+			}
+			// else destination is S3 → PutObject (already the default)
 		}
 	}
 
@@ -308,6 +371,19 @@ func cliCommandToAction(service, command string) string {
 }
 
 // extractResourceFromArgs extracts resource ARN from CLI arguments.
+// getFlagValue returns the value of a CLI flag, handling both "--flag value" and "--flag=value" syntax.
+func getFlagValue(args []string, flag string) string {
+	for i, arg := range args {
+		if arg == flag && i+1 < len(args) {
+			return args[i+1]
+		}
+		if strings.HasPrefix(arg, flag+"=") {
+			return strings.TrimPrefix(arg, flag+"=")
+		}
+	}
+	return ""
+}
+
 func extractResourceFromArgs(service, command string, args []string) string {
 	switch service {
 	case "s3":
@@ -318,6 +394,20 @@ func extractResourceFromArgs(service, command string, args []string) string {
 		return extractLambdaResource(args)
 	case "sqs":
 		return extractSQSResource(args)
+	case "sns":
+		return extractSNSResource(args)
+	case "sts":
+		return extractSTSResource(args)
+	case "iam":
+		return extractIAMResource(args)
+	case "secretsmanager":
+		return extractSecretsManagerResource(args)
+	case "ssm":
+		return extractSSMResource(args)
+	case "logs":
+		return extractCloudWatchLogsResource(args)
+	case "kms":
+		return extractKMSResource(args)
 	default:
 		return "*"
 	}
@@ -349,15 +439,8 @@ func extractS3Resource(args []string) string {
 	}
 
 	// Check for --bucket and --key flags (s3api CLI style)
-	var bucket, key string
-	for i, arg := range args {
-		if arg == "--bucket" && i+1 < len(args) {
-			bucket = args[i+1]
-		}
-		if arg == "--key" && i+1 < len(args) {
-			key = args[i+1]
-		}
-	}
+	bucket := getFlagValue(args, "--bucket")
+	key := getFlagValue(args, "--key")
 
 	if bucket != "" {
 		if key != "" {
@@ -370,34 +453,114 @@ func extractS3Resource(args []string) string {
 }
 
 func extractDynamoDBResource(args []string) string {
-	for i, arg := range args {
-		if arg == "--table-name" && i+1 < len(args) {
-			return "arn:aws:dynamodb:*:*:table/" + args[i+1]
-		}
+	table := getFlagValue(args, "--table-name")
+	if table != "" {
+		return "arn:aws:dynamodb:*:*:table/" + table
 	}
 	return "*"
 }
 
 func extractLambdaResource(args []string) string {
-	for i, arg := range args {
-		if arg == "--function-name" && i+1 < len(args) {
-			return "arn:aws:lambda:*:*:function:" + args[i+1]
-		}
+	fn := getFlagValue(args, "--function-name")
+	if fn != "" {
+		return "arn:aws:lambda:*:*:function:" + fn
 	}
 	return "*"
 }
 
 func extractSQSResource(args []string) string {
-	for i, arg := range args {
-		if arg == "--queue-url" && i+1 < len(args) {
-			// Parse queue URL to ARN
-			url := args[i+1]
-			// URL format: https://sqs.region.amazonaws.com/account/queue-name
-			parts := strings.Split(url, "/")
-			if len(parts) >= 5 {
-				return "arn:aws:sqs:*:" + parts[3] + ":" + parts[4]
-			}
+	queueURL := getFlagValue(args, "--queue-url")
+	if queueURL != "" {
+		parts := strings.Split(queueURL, "/")
+		if len(parts) >= 5 {
+			return "arn:aws:sqs:*:" + parts[3] + ":" + parts[4]
 		}
+	}
+	return "*"
+}
+
+func extractSNSResource(args []string) string {
+	if arn := getFlagValue(args, "--topic-arn"); arn != "" {
+		return arn
+	}
+	if arn := getFlagValue(args, "--target-arn"); arn != "" {
+		return arn
+	}
+	return "*"
+}
+
+func extractSTSResource(args []string) string {
+	if arn := getFlagValue(args, "--role-arn"); arn != "" {
+		return arn
+	}
+	return "*"
+}
+
+func extractIAMResource(args []string) string {
+	if arn := getFlagValue(args, "--policy-arn"); arn != "" {
+		return arn
+	}
+	if name := getFlagValue(args, "--role-name"); name != "" {
+		return "arn:aws:iam::*:role/" + name
+	}
+	if name := getFlagValue(args, "--user-name"); name != "" {
+		return "arn:aws:iam::*:user/" + name
+	}
+	if name := getFlagValue(args, "--group-name"); name != "" {
+		return "arn:aws:iam::*:group/" + name
+	}
+	return "*"
+}
+
+func extractSecretsManagerResource(args []string) string {
+	secretID := getFlagValue(args, "--secret-id")
+	if secretID != "" {
+		if strings.HasPrefix(secretID, "arn:") {
+			return secretID
+		}
+		return "arn:aws:secretsmanager:*:*:secret:" + secretID
+	}
+	return "*"
+}
+
+func extractSSMResource(args []string) string {
+	name := getFlagValue(args, "--name")
+	if name == "" {
+		namesList := getFlagValue(args, "--names")
+		if namesList != "" {
+			name = strings.Split(namesList, ",")[0]
+		}
+	}
+	if name != "" {
+		if strings.HasPrefix(name, "arn:") {
+			return name
+		}
+		if !strings.HasPrefix(name, "/") {
+			name = "/" + name
+		}
+		return "arn:aws:ssm:*:*:parameter" + name
+	}
+	return "*"
+}
+
+func extractCloudWatchLogsResource(args []string) string {
+	logGroup := getFlagValue(args, "--log-group-name")
+	if logGroup != "" {
+		return "arn:aws:logs:*:*:log-group:" + logGroup
+	}
+	return "*"
+}
+
+func extractKMSResource(args []string) string {
+	keyID := getFlagValue(args, "--key-id")
+	if keyID != "" {
+		if strings.HasPrefix(keyID, "arn:") {
+			return keyID
+		}
+		return "arn:aws:kms:*:*:key/" + keyID
+	}
+	if alias := getFlagValue(args, "--alias-name"); alias != "" {
+		return "arn:aws:kms:*:*:" + alias
 	}
 	return "*"
 }

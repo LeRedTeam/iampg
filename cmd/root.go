@@ -1,13 +1,15 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 )
 
-var version = "0.1.0"
+var version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:   "iampg",
@@ -24,9 +26,6 @@ func init() {
 	rootCmd.SetOut(os.Stdout)
 	rootCmd.SetErr(os.Stderr)
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+	rootCmd.SilenceUsage = true
 }
 
-func exitWithError(msg string, code int) {
-	fmt.Fprintln(os.Stderr, "Error:", msg)
-	os.Exit(code)
-}

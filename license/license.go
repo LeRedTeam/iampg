@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package license
 
 import (
@@ -14,9 +17,10 @@ import (
 type Tier string
 
 const (
-	TierFree Tier = "free"
-	TierPro  Tier = "pro"
-	TierTeam Tier = "team"
+	TierFree       Tier = "free"
+	TierPro        Tier = "pro"
+	TierTeam       Tier = "team"
+	TierCommercial Tier = "commercial"
 )
 
 // License represents a validated license.
@@ -175,7 +179,7 @@ func (l *License) HasFeature(feature string) bool {
 	}
 
 	// Check paid features
-	if l.Tier == TierPro || l.Tier == TierTeam {
+	if l.Tier == TierPro || l.Tier == TierTeam || l.Tier == TierCommercial {
 		return proFeatures[feature]
 	}
 
@@ -198,5 +202,5 @@ func RequireFeature(feature string) error {
 
 // IsPaid returns true if the license is a paid tier.
 func (l *License) IsPaid() bool {
-	return l.Tier == TierPro || l.Tier == TierTeam
+	return l.Tier == TierPro || l.Tier == TierTeam || l.Tier == TierCommercial
 }

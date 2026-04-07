@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package policy
 
 import (
@@ -29,6 +32,24 @@ func (d *Document) ToTerraform(resourceName string) ([]byte, error) {
 		resourceName = "generated_policy"
 	}
 
+	// Sanitize resource name to valid Terraform identifier [a-zA-Z_][a-zA-Z0-9_]*
+	sanitized := make([]byte, 0, len(resourceName))
+	for _, c := range resourceName {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+			sanitized = append(sanitized, byte(c))
+		} else if c == '-' || c == ' ' || c == '.' {
+			sanitized = append(sanitized, '_')
+		}
+	}
+	if len(sanitized) == 0 {
+		resourceName = "generated_policy"
+	} else {
+		resourceName = string(sanitized)
+		if resourceName[0] >= '0' && resourceName[0] <= '9' {
+			resourceName = "_" + resourceName
+		}
+	}
+
 	policyJSON, err := d.ToJSON()
 	if err != nil {
 		return nil, err
@@ -36,8 +57,13 @@ func (d *Document) ToTerraform(resourceName string) ([]byte, error) {
 
 	// Indent the JSON for readability inside heredoc
 	var prettyJSON map[string]interface{}
-	json.Unmarshal(policyJSON, &prettyJSON)
-	indentedJSON, _ := json.MarshalIndent(prettyJSON, "  ", "  ")
+	if err := json.Unmarshal(policyJSON, &prettyJSON); err != nil {
+		return nil, fmt.Errorf("failed to parse policy JSON: %w", err)
+	}
+	indentedJSON, err := json.MarshalIndent(prettyJSON, "  ", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to format policy JSON: %w", err)
+	}
 
 	hcl := fmt.Sprintf(`resource "aws_iam_policy" "%s" {
   name        = "%s"
@@ -203,6 +229,9 @@ func (d *Document) toSARIFResults() []SARIFResult {
 
 // Format outputs the policy in the specified format.
 func (d *Document) Format(format Format, options map[string]string) ([]byte, error) {
+	if options == nil {
+		options = map[string]string{}
+	}
 	switch format {
 	case FormatJSON:
 		return d.ToJSON()

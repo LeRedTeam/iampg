@@ -1,9 +1,11 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package cmd
 
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/LeRedTeam/iampg/license"
 	"github.com/LeRedTeam/iampg/refine"
@@ -69,15 +71,17 @@ func runRefine(cmd *cobra.Command, args []string) error {
 		diffResult := refine.Diff(baseline, doc)
 
 		if refineFormat == "json" {
-			output, _ := json.MarshalIndent(diffResult, "", "  ")
+			output, err := json.MarshalIndent(diffResult, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal diff result: %w", err)
+			}
 			fmt.Println(string(output))
 		} else {
 			fmt.Print(refine.FormatDiff(diffResult))
 		}
 
 		if refineEnforce && diffResult.HasDrift() {
-			fmt.Fprintln(os.Stderr, "Policy drift detected.")
-			os.Exit(1)
+			return fmt.Errorf("policy drift detected")
 		}
 
 		return nil
@@ -87,16 +91,26 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	result := refine.Analyze(doc)
 
 	if refineFormat == "json" {
-		output, _ := json.MarshalIndent(result, "", "  ")
+		output, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal analysis result: %w", err)
+		}
 		fmt.Println(string(output))
 	} else {
 		fmt.Print(refine.FormatResult(result))
 	}
 
 	// Enforce mode: exit with error if issues found
-	if refineEnforce && result.Summary.OverlyBroad > 0 {
-		fmt.Fprintln(os.Stderr, "Policy contains overly broad permissions.")
-		os.Exit(1)
+	if refineEnforce && result.Summary.IssueCount > 0 {
+		errorCount := 0
+		for _, issue := range result.Issues {
+			if issue.Severity == "error" || issue.Severity == "warning" {
+				errorCount++
+			}
+		}
+		if errorCount > 0 {
+			return fmt.Errorf("policy has %d security issue(s)", errorCount)
+		}
 	}
 
 	return nil

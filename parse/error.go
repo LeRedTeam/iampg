@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package parse
 
 import (
@@ -27,13 +30,18 @@ var (
 	)
 	// Pattern: "Resource: arn:..."
 	resourcePattern = regexp.MustCompile(
-		`[Rr]esource:\s*(arn:[^\s,]+)`,
+		`[Rr]esource:\s*(arn:[^\s]+)`,
 	)
 	// Service from error context
 	servicePattern = regexp.MustCompile(
 		`([a-z0-9]+)\.amazonaws\.com`,
 	)
 )
+
+// cleanARN strips trailing punctuation that may have been captured from sentence context.
+func cleanARN(arn string) string {
+	return strings.TrimRight(arn, ".,;)\"'")
+}
 
 // ParseAccessDenied parses an AccessDenied error message and returns observed calls.
 func ParseAccessDenied(message string) []policy.ObservedCall {
@@ -45,7 +53,7 @@ func ParseAccessDenied(message string) []policy.ObservedCall {
 			calls = append(calls, policy.ObservedCall{
 				Service:  m[1],
 				Action:   m[2],
-				Resource: m[3],
+				Resource: cleanARN(m[3]),
 			})
 		}
 		return calls
@@ -57,7 +65,7 @@ func ParseAccessDenied(message string) []policy.ObservedCall {
 			calls = append(calls, policy.ObservedCall{
 				Service:  m[1],
 				Action:   m[2],
-				Resource: m[3],
+				Resource: cleanARN(m[3]),
 			})
 		}
 		return calls
@@ -76,7 +84,7 @@ func ParseAccessDenied(message string) []policy.ObservedCall {
 
 	// Find resource
 	if m := resourcePattern.FindStringSubmatch(message); m != nil {
-		resource = m[1]
+		resource = cleanARN(m[1])
 	}
 
 	// Find service from context if not found
@@ -91,7 +99,7 @@ func ParseAccessDenied(message string) []policy.ObservedCall {
 		service = extractServiceFromARN(resource)
 	}
 
-	if action != "" {
+	if action != "" && service != "" {
 		if resource == "" {
 			resource = "*"
 		}

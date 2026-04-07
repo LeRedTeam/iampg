@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package cmd
 
 import (
@@ -9,7 +12,15 @@ import (
 )
 
 // outputPolicy formats and outputs a policy document.
+var validFormats = map[string]bool{
+	"json": true, "yaml": true, "terraform": true, "sarif": true,
+}
+
 func outputPolicy(doc *policy.Document, format, outputPath, resourceName string) error {
+	if !validFormats[format] {
+		return fmt.Errorf("unknown format %q: must be json, yaml, terraform, or sarif", format)
+	}
+
 	// Check license for paid formats
 	paidFormats := map[string]string{
 		"yaml":      "yaml",
@@ -41,7 +52,8 @@ func outputPolicy(doc *policy.Document, format, outputPath, resourceName string)
 		}
 		fmt.Fprintf(os.Stderr, "Policy written to %s\n", outputPath)
 	} else {
-		fmt.Println(string(output))
+		os.Stdout.Write(output)
+		os.Stdout.Write([]byte("\n"))
 	}
 
 	return nil

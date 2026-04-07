@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package parse
 
 import (
@@ -36,7 +39,7 @@ func ParseCloudTrail(data []byte) ([]policy.ObservedCall, error) {
 		// Try parsing as array directly
 		var records []CloudTrailRecord
 		if err2 := json.Unmarshal(data, &records); err2 != nil {
-			return nil, fmt.Errorf("invalid CloudTrail format: %w", err)
+			return nil, fmt.Errorf("invalid CloudTrail format: %w", err2)
 		}
 		log.Records = records
 	}
@@ -53,8 +56,15 @@ func ParseCloudTrail(data []byte) ([]policy.ObservedCall, error) {
 }
 
 func recordToCall(record CloudTrailRecord) *policy.ObservedCall {
+	// Skip failed API calls — only successful calls reflect actual permissions needed
+	if record.ErrorCode != "" {
+		return nil
+	}
+
 	// Extract service from eventSource (e.g., "s3.amazonaws.com" -> "s3")
-	service := strings.TrimSuffix(record.EventSource, ".amazonaws.com")
+	service := record.EventSource
+	service = strings.TrimSuffix(service, ".amazonaws.com.cn")
+	service = strings.TrimSuffix(service, ".amazonaws.com")
 
 	// Get resource ARN
 	resource := "*"
@@ -108,6 +118,55 @@ func extractResourceFromParams(service string, params json.RawMessage) string {
 			if len(parts) >= 2 {
 				return "arn:aws:sqs:*:" + parts[len(parts)-2] + ":" + parts[len(parts)-1]
 			}
+		}
+	case "sns":
+		if topicArn, ok := data["topicArn"].(string); ok {
+			return topicArn
+		}
+		if targetArn, ok := data["targetArn"].(string); ok {
+			return targetArn
+		}
+	case "sts":
+		if roleArn, ok := data["roleArn"].(string); ok {
+			return roleArn
+		}
+	case "iam":
+		if roleName, ok := data["roleName"].(string); ok {
+			return "arn:aws:iam::*:role/" + roleName
+		}
+		if userName, ok := data["userName"].(string); ok {
+			return "arn:aws:iam::*:user/" + userName
+		}
+		if policyArn, ok := data["policyArn"].(string); ok {
+			return policyArn
+		}
+	case "secretsmanager":
+		if secretId, ok := data["secretId"].(string); ok {
+			if strings.HasPrefix(secretId, "arn:") {
+				return secretId
+			}
+			return "arn:aws:secretsmanager:*:*:secret:" + secretId
+		}
+	case "ssm":
+		if name, ok := data["name"].(string); ok {
+			if strings.HasPrefix(name, "arn:") {
+				return name
+			}
+			if !strings.HasPrefix(name, "/") {
+				name = "/" + name
+			}
+			return "arn:aws:ssm:*:*:parameter" + name
+		}
+	case "logs":
+		if logGroupName, ok := data["logGroupName"].(string); ok {
+			return "arn:aws:logs:*:*:log-group:" + logGroupName
+		}
+	case "kms":
+		if keyId, ok := data["keyId"].(string); ok {
+			if strings.HasPrefix(keyId, "arn:") {
+				return keyId
+			}
+			return "arn:aws:kms:*:*:key/" + keyId
 		}
 	}
 

@@ -1,8 +1,10 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package capture
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -72,7 +74,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, req *http.Request) {
 	// Read and capture the request body
 	var bodyBytes []byte
 	if req.Body != nil {
-		bodyBytes, _ = io.ReadAll(req.Body)
+		bodyBytes, _ = io.ReadAll(io.LimitReader(req.Body, 10<<20)) // 10MB limit
 		req.Body.Close()
 		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
@@ -185,13 +187,3 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, req *http.Request) {
 
 	wg.Wait()
 }
-
-// ProxyWithMITM is a proxy that performs MITM to capture HTTPS traffic.
-type ProxyWithMITM struct {
-	*Proxy
-	tlsConfig *tls.Config
-}
-
-// Note: Full MITM implementation requires CA certificate generation
-// and is complex. For MVP, we'll use a simpler approach:
-// Parse AWS CLI debug output or use SDK-specific instrumentation.

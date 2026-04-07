@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package capture
 
 import (
@@ -24,6 +27,15 @@ func (c *Capturer) AddCall(call policy.ObservedCall) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls = append(c.calls, call)
+}
+
+// UpdateLast applies a mutation to the last captured call under the lock.
+func (c *Capturer) UpdateLast(fn func(*policy.ObservedCall)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.calls) > 0 {
+		fn(&c.calls[len(c.calls)-1])
+	}
 }
 
 // Calls returns all observed calls.

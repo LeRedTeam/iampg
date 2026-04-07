@@ -1,8 +1,12 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package capture
 
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -24,7 +28,7 @@ func ParseAWSRequest(req *http.Request, body []byte) *policy.ObservedCall {
 	}
 
 	// Check if this is an AWS request
-	if !strings.Contains(host, "amazonaws.com") {
+	if !strings.HasSuffix(host, ".amazonaws.com") && !strings.HasSuffix(host, ".amazonaws.com.cn") {
 		return nil
 	}
 
@@ -247,14 +251,11 @@ func parseFormAction(body []byte) string {
 	if len(body) == 0 {
 		return ""
 	}
-	// Simple form parsing for Action=X
-	s := string(body)
-	for _, part := range strings.Split(s, "&") {
-		if strings.HasPrefix(part, "Action=") {
-			return strings.TrimPrefix(part, "Action=")
-		}
+	values, err := url.ParseQuery(string(body))
+	if err != nil {
+		return ""
 	}
-	return ""
+	return values.Get("Action")
 }
 
 func parseResource(service string, req *http.Request, body []byte, region string) string {

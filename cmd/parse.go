@@ -1,7 +1,9 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -124,20 +126,9 @@ func runParse(cmd *cobra.Command, args []string) error {
 }
 
 func readStdin() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	var builder strings.Builder
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				builder.WriteString(line)
-				break
-			}
-			return "", err
-		}
-		builder.WriteString(line)
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", err
 	}
-
-	return builder.String(), nil
+	return string(data), nil
 }

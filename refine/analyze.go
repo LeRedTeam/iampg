@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package refine
 
 import (
@@ -56,6 +59,11 @@ func Analyze(doc *policy.Document) *AnalysisResult {
 	}
 
 	for i, stmt := range doc.Statement {
+		// Only analyze Allow statements — Deny statements are restrictive, not permissive
+		if stmt.Effect == "Deny" {
+			continue
+		}
+
 		// Check for wildcard actions
 		for _, action := range stmt.Action {
 			if action == "*" {
@@ -148,7 +156,7 @@ func checkOverlyPermissive(stmt policy.Statement, idx int, result *AnalysisResul
 	}
 
 	// Check for admin-like permissions
-	adminPatterns := []string{"*:*", "AdministratorAccess"}
+	adminPatterns := []string{"*:*"}
 	for _, action := range stmt.Action {
 		for _, pattern := range adminPatterns {
 			if action == pattern {

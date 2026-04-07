@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package cmd
 
 import (
@@ -85,7 +88,10 @@ func runGenerateKeypair(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	output, _ := json.MarshalIndent(keypair, "", "  ")
+	output, err := json.MarshalIndent(keypair, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal keypair: %w", err)
+	}
 	fmt.Println(string(output))
 
 	fmt.Fprintln(os.Stderr, "\n⚠️  Store the private_key securely. It cannot be recovered.")
@@ -104,8 +110,8 @@ func runGenerateLicense(cmd *cobra.Command, args []string) error {
 	}
 
 	tier := license.Tier(licenseTier)
-	if tier != license.TierPro && tier != license.TierTeam {
-		return fmt.Errorf("invalid tier: must be 'pro' or 'team'")
+	if tier != license.TierPro && tier != license.TierTeam && tier != license.TierCommercial {
+		return fmt.Errorf("invalid tier: must be 'pro', 'team', or 'commercial'")
 	}
 
 	key, err := license.GenerateLicenseKey(privateKey, licenseEmail, tier, licenseValidDays)

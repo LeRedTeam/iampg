@@ -1,3 +1,6 @@
+// Copyright (C) 2026 LeRedTeam
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package cmd
 
 import (
@@ -68,10 +71,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Captured %d AWS API call(s).\n", len(calls))
 	}
 
-	// Exit with the wrapped command's exit code if it failed
+	// Warn if wrapped command failed (policy was still generated)
 	if exitCode != 0 {
-		fmt.Fprintf(os.Stderr, "Command exited with code %d. Policy generated from observed calls.\n", exitCode)
-		os.Exit(exitCode)
+		fmt.Fprintf(os.Stderr, "Warning: command exited with code %d. Policy was still generated from observed calls.\n", exitCode)
 	}
 
 	return nil
