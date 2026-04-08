@@ -218,6 +218,13 @@ iampg run --format sarif -- aws s3 ls
 **Pro** is for individual developers and open source projects.
 **Commercial** is for organizations that need an AGPL exemption for proprietary use.
 
+**Purchase:**
+- [Pro Monthly ($19/mo)](https://buy.stripe.com/14A8wQ6PpaC37SoexZ2cg03)
+- [Pro Annual ($149/yr)](https://buy.stripe.com/7sY8wQ2z95hJc8E0H92cg00)
+- [Commercial Annual ($149/yr)](https://buy.stripe.com/00w4gA0r1aC3fkQ61t2cg02)
+
+After purchase you'll receive your license key by email. Set it as:
+
 ```bash
 export IAMPG_LICENSE_KEY=your-license-key
 ```
