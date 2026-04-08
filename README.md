@@ -1,4 +1,4 @@
-# iampg - IAM Auto-Policy Generator
+# iampg — IAM Policy Guard
 
 **Enforce least-privilege IAM in every PR.**
 
@@ -8,9 +8,19 @@
 
 ---
 
-## The Problem
+## Why This Matters
 
-IAM policies drift. Permissions creep. Nobody catches it until a security audit.
+Over-permissioned IAM policies are one of the most common cloud security risks. They lead to:
+
+- **Privilege escalation** — Attackers exploit broad permissions to move laterally
+- **Audit failures** — Compliance reviews flag wildcard policies and unused permissions
+- **Blast radius** — When credentials leak, over-permissioned roles cause maximum damage
+
+iampg catches these problems **before merge**, not after a security incident.
+
+---
+
+## The Problem
 
 Developers either:
 - Over-permission with `AdministratorAccess` because debugging `AccessDenied` takes hours
@@ -19,6 +29,27 @@ Developers either:
 **iampg** fixes both sides:
 1. **Generate** minimal policies by observing real AWS API calls
 2. **Enforce** least-privilege standards in your CI/CD pipeline before merge
+
+---
+
+## Who Is This For
+
+- **Backend developers** deploying on AWS who don't want to guess IAM permissions
+- **DevOps engineers** managing IAM roles across CI/CD pipelines
+- **Small teams** without a dedicated security engineer
+- **Startups** that need security basics without enterprise tooling
+
+---
+
+## Why iampg
+
+- **CI/CD native** — Runs in your pipeline, not just locally
+- **Enforces automatically** — Blocks PRs with over-permissioned policies
+- **No infrastructure** — Single binary, no backend, no SaaS dependency
+- **No credentials stored** — Uses your existing AWS credentials, never stores them
+- **Multiple outputs** — JSON, YAML, Terraform HCL, SARIF for security scanners
+- **Drift detection** — Compare policies between deployments
+- **Offline license validation** — No phone-home, no network calls
 
 ---
 
